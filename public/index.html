@@ -1,50 +1,85 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
-    <title>Scrabble TV - Tablero</title>
+    <meta charset="UTF-8">
+    <title>Scrabble TV - Board</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <style>
-        body { background: #2c3e50; color: white; font-family: sans-serif; text-align: center; }
-        #board { 
-            display: grid; grid-template-columns: repeat(15, 40px); 
-            grid-template-rows: repeat(15, 40px); gap: 2px; 
-            justify-content: center; margin-top: 20px;
-        }
-        .cell { width: 40px; height: 40px; background: #ecf0f1; color: #2c3e50; 
-                display: flex; align-items: center; justify-content: center; font-weight: bold; border-radius: 4px; }
-        #room-id { font-size: 3em; color: #f1c40f; }
+        body { background: #1a1a1a; color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; margin: 0; }
+        .main { display: flex; gap: 20px; padding: 20px; }
+        #board { display: grid; grid-template-columns: repeat(15, 45px); grid-template-rows: repeat(15, 45px); gap: 2px; background: #34495e; padding: 5px; }
+        .cell { width: 45px; height: 45px; background: #ecf0f1; color: #2c3e50; display: flex; align-items: center; justify-content: center; font-weight: bold; border-radius: 2px; font-size: 1.2em; }
+        .tp { background: #e74c3c !important; color: white; } .dp { background: #ff7675 !important; }
+        .ficha-animada { animation: pop 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275); background: #f1c40f !important; }
+        @keyframes pop { 0% { transform: scale(0); } 100% { transform: scale(1); } }
+        .player { padding: 10px; margin: 5px; background: #2d3436; border-radius: 5px; width: 200px; }
+        .active { border: 3px solid #f1c40f; transform: scale(1.05); }
+        #game-over-screen { position: fixed; inset: 0; background: rgba(0,0,0,0.95); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100; }
     </style>
 </head>
 <body>
-    <h1>CÓDIGO DE SALA: <span id="room-id">...</span></h1>
-    <div id="board"></div>
+    <h1>CÓDIGO: <span id="room-id">...</span></h1>
+    <div class="main">
+        <div id="board"></div>
+        <div id="player-list"></div>
+    </div>
 
-    <script src="/socket.io/socket.io.js"></script>
+    <div id="game-over-screen">
+        <h1 style="font-size: 4em; color: #f1c40f;">¡FIN DEL JUEGO!</h1>
+        <div id="podium" style="display: flex; gap: 20px; align-items: flex-end;"></div>
+        <button onclick="location.reload()" style="margin-top: 30px; padding: 10px 20px;">REINICIAR</button>
+    </div>
+
     <script>
         const socket = io();
-        const boardDiv = document.getElementById('board');
+        const boardLayout = { tp: ["0,0", "0,14", "14,0", "14,14", "0,7", "7,0", "14,7", "7,14"], dp: ["1,1", "2,2", "3,3", "4,4", "10,10", "11,11", "12,12", "13,13"] };
+        const board = document.getElementById('board');
 
-        // Crear cuadrícula visual
-        for(let i=0; i<225; i++) {
-            const cell = document.createElement('div');
-            cell.className = 'cell';
-            cell.id = `cell-${i}`;
-            boardDiv.appendChild(cell);
+        for(let y=0; y<15; y++) {
+            for(let x=0; x<15; x++) {
+                const c = document.createElement('div');
+                c.className = 'cell';
+                c.id = `cell-${x}-${y}`;
+                const coord = `${x},${y}`;
+                if(boardLayout.tp.includes(coord)) { c.classList.add('tp'); c.innerText = 'TP'; }
+                if(boardLayout.dp.includes(coord)) { c.classList.add('dp'); c.innerText = 'DP'; }
+                board.appendChild(c);
+            }
         }
 
         socket.emit('create-game');
-        socket.on('game-created', (code) => {
-            document.getElementById('room-id').innerText = code;
+        socket.on('game-created', code => document.getElementById('room-id').innerText = code);
+
+        socket.on('update-game-state', state => {
+            document.getElementById('player-list').innerHTML = state.players.map(p => `
+                <div class="player ${p.id === state.turnOwner ? 'active' : ''}">
+                    ${p.name}: <b>${p.score} pts</b> ${p.id === state.turnOwner ? '⚡' : ''}
+                </div>
+            `).join('');
         });
 
-        socket.on('new-word-on-board', (data) => {
-            console.log("Nueva jugada:", data);
-            // Lógica simple para poner la palabra en el tablero
-            let startIdx = (data.y * 15) + parseInt(data.x);
-            data.word.split('').forEach((letra, i) => {
-                let pos = data.vertical ? startIdx + (i * 15) : startIdx + i;
-                const cell = document.getElementById(`cell-${pos}`);
-                if(cell) cell.innerText = letra.toUpperCase();
+        socket.on('new-word-on-board', data => {
+            data.word.split('').forEach((l, i) => {
+                const x = data.vertical ? parseInt(data.x) : parseInt(data.x) + i;
+                const y = data.vertical ? parseInt(data.y) + i : parseInt(data.y);
+                const cell = document.getElementById(`cell-${x}-${y}`);
+                setTimeout(() => {
+                    cell.innerText = l.toUpperCase();
+                    cell.classList.add('ficha-animada');
+                }, i * 150);
             });
+        });
+
+        socket.on('game-over', podio => {
+            confetti({ particleCount: 200, spread: 70, origin: { y: 0.6 } });
+            document.getElementById('game-over-screen').style.display = 'flex';
+            document.getElementById('podium').innerHTML = podio.map((p, i) => `
+                <div style="text-align:center">
+                    <div style="background:#f1c40f; width:100px; height:${150-i*40}px; display:flex; align-items:center; justify-content:center; color:black; font-weight:bold; border-radius:5px 5px 0 0">${i+1}º</div>
+                    <p>${p.name}<br>${p.score} pts</p>
+                </div>
+            `).join('');
         });
     </script>
 </body>
