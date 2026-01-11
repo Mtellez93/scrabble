@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Scrabble TV - Tablero</title>
+    <style>
+        body { background: #2c3e50; color: white; font-family: sans-serif; text-align: center; }
+        #board { 
+            display: grid; grid-template-columns: repeat(15, 40px); 
+            grid-template-rows: repeat(15, 40px); gap: 2px; 
+            justify-content: center; margin-top: 20px;
+        }
+        .cell { width: 40px; height: 40px; background: #ecf0f1; color: #2c3e50; 
+                display: flex; align-items: center; justify-content: center; font-weight: bold; border-radius: 4px; }
+        #room-id { font-size: 3em; color: #f1c40f; }
+    </style>
+</head>
+<body>
+    <h1>CÓDIGO DE SALA: <span id="room-id">...</span></h1>
+    <div id="board"></div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const boardDiv = document.getElementById('board');
+
+        // Crear cuadrícula visual
+        for(let i=0; i<225; i++) {
+            const cell = document.createElement('div');
+            cell.className = 'cell';
+            cell.id = `cell-${i}`;
+            boardDiv.appendChild(cell);
+        }
+
+        socket.emit('create-game');
+        socket.on('game-created', (code) => {
+            document.getElementById('room-id').innerText = code;
+        });
+
+        socket.on('new-word-on-board', (data) => {
+            console.log("Nueva jugada:", data);
+            // Lógica simple para poner la palabra en el tablero
+            let startIdx = (data.y * 15) + parseInt(data.x);
+            data.word.split('').forEach((letra, i) => {
+                let pos = data.vertical ? startIdx + (i * 15) : startIdx + i;
+                const cell = document.getElementById(`cell-${pos}`);
+                if(cell) cell.innerText = letra.toUpperCase();
+            });
+        });
+    </script>
+</body>
+</html>
