@@ -1,53 +1,79 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Control Scrabble</title>
+    <title>Scrabble Control</title>
+    <script src="/socket.io/socket.io.js"></script>
     <style>
-        body { font-family: sans-serif; padding: 20px; background: #f3f3f3; }
-        input, button { width: 100%; padding: 15px; margin: 10px 0; font-size: 1.2em; }
-        .atril { display: flex; justify-content: space-around; background: #d35400; padding: 10px; border-radius: 8px; color: white; }
+        body { font-family: sans-serif; background: #2c3e50; color: white; text-align: center; padding: 20px; }
+        input, button, select { width: 100%; padding: 15px; margin: 10px 0; border-radius: 8px; border: none; font-size: 1em; }
+        .atril { display: flex; justify-content: center; gap: 5px; margin: 20px 0; }
+        .ficha { background: #f1c40f; color: black; padding: 10px; font-weight: bold; border-radius: 4px; min-width: 20px; }
+        .btn-play { background: #27ae60; color: white; font-weight: bold; }
+        .btn-play:disabled { background: #95a5a6; }
     </style>
 </head>
 <body>
     <div id="setup">
-        <input id="roomInput" placeholder="Código de Sala (Ej: ABCD)">
-        <input id="nameInput" placeholder="Tu Nombre">
-        <button onclick="join()">UNIRSE AL JUEGO</button>
+        <h2>Unirse a la Sala</h2>
+        <input id="room" placeholder="CÓDIGO (ABCD)">
+        <input id="name" placeholder="TU NOMBRE">
+        <button onclick="join()" style="background:#e67e22; color:white">ENTRAR</button>
     </div>
 
     <div id="game" style="display:none">
-        <h3>Tu Mano:</h3>
-        <div class="atril"> [A] [B] [C] [E] [I] [R] [S] </div>
-        <hr>
-        <input id="wordInput" placeholder="Escribe tu palabra">
-        <input id="posX" type="number" placeholder="Posición X (0-14)">
-        <input id="posY" type="number" placeholder="Posición Y (0-14)">
-        <button onclick="sendWord()" style="background: #27ae60; color: white;">ENVIAR A LA TV</button>
+        <div id="atril" class="atril"></div>
+        <input id="word" placeholder="PALABRA">
+        <div style="display:flex; gap:10px">
+            <input id="x" type="number" placeholder="X (0-14)">
+            <input id="y" type="number" placeholder="Y (0-14)">
+        </div>
+        <select id="vert"><option value="false">Horizontal</option><option value="true">Vertical</option></select>
+        <button id="playBtn" class="btn-play" onclick="play()">ENVIAR JUGADA</button>
     </div>
 
-    <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
-        let currentRoom = "";
+        let myRoom = "";
 
         function join() {
-            currentRoom = document.getElementById('roomInput').value.toUpperCase();
-            const playerName = document.getElementById('nameInput').value;
-            socket.emit('join-game', { roomCode: currentRoom, playerName });
+            myRoom = document.getElementById('room').value.toUpperCase();
+            socket.emit('join-game', { roomCode: myRoom, playerName: document.getElementById('name').value });
         }
 
-        socket.on('joined-success', () => {
+        socket.on('joined-success', data => {
             document.getElementById('setup').style.display = 'none';
             document.getElementById('game').style.display = 'block';
+            renderAtril(data.letras);
         });
 
-        function sendWord() {
-            const word = document.getElementById('wordInput').value;
-            const x = document.getElementById('posX').value;
-            const y = document.getElementById('posY').value;
-            socket.emit('play-word', { roomCode: currentRoom, word, x, y, vertical: false });
+        function renderAtril(letras) {
+            document.getElementById('atril').innerHTML = letras.map(l => `<div class="ficha">${l}</div>`).join('');
         }
+
+        socket.on('nuevas-letras', renderAtril);
+        socket.on('error-juego', m => alert(m));
+
+        socket.on('update-game-state', state => {
+            const isMyTurn = socket.id === state.turnOwner;
+            document.getElementById('playBtn').disabled = !isMyTurn;
+            document.getElementById('playBtn').innerText = isMyTurn ? "¡TU TURNO! ENVIAR" : "ESPERA TU TURNO...";
+        });
+
+        function play() {
+            socket.emit('play-word', {
+                roomCode: myRoom,
+                word: document.getElementById('word').value,
+                x: document.getElementById('x').value,
+                y: document.getElementById('y').value,
+                vertical: document.getElementById('vert').value === "true"
+            });
+            document.getElementById('word').value = "";
+        }
+        
+        socket.on('game-over', () => {
+            document.body.innerHTML = "<h1>JUEGO TERMINADO</h1><p>Mira la TV para ver los resultados.</p>";
+        });
     </script>
 </body>
 </html>
