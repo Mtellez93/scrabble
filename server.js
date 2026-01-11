@@ -1,29 +1,45 @@
- const express = require('express');
+const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Almacén simple de estados (en producción usarías algo más robusto)
+let games = {}; 
 
 io.on('connection', (socket) => {
-    console.log('Alguien se conectó:', socket.id);
-
-    // Unirse a una sala específica
-    socket.on('join-room', (roomCode) => {
+    // La TV crea la sala
+    socket.on('create-game', () => {
+        const roomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
         socket.join(roomCode);
-        console.log(`Usuario unido a sala: ${roomCode}`);
+        games[roomCode] = { players: [], board: [] };
+        socket.emit('game-created', roomCode);
     });
 
-    // Escuchar cuando un jugador envía una palabra
-    socket.on('enviar-palabra', (data) => {
-        // data contiene: { roomCode, palabra, coords, orientacion }
-        // Lo enviamos SOLO a la TV de esa sala
-        io.to(data.roomCode).emit('actualizar-tablero', data);
+    // El Celular se une a la sala
+    socket.on('join-game', (data) => {
+        const { roomCode, playerName } = data;
+        if (io.sockets.adapter.rooms.has(roomCode)) {
+            socket.join(roomCode);
+            // Avisar a la TV que alguien se unió
+            io.to(roomCode).emit('player-joined', playerName);
+            socket.emit('joined-success', { roomCode });
+        } else {
+            socket.emit('error', 'La sala no existe');
+        }
+    });
+
+    // El Celular envía una jugada
+    socket.on('play-word', (data) => {
+        // data: { roomCode, word, x, y, vertical }
+        io.to(data.roomCode).emit('new-word-on-board', data);
     });
 });
 
 const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Servidor corriendo en puerto ${PORT}`));
+server.listen(PORT, () => console.log(`Servidor en puerto ${PORT}`));
