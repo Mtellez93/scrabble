@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Control Scrabble</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; background: #f3f3f3; }
+        input, button { width: 100%; padding: 15px; margin: 10px 0; font-size: 1.2em; }
+        .atril { display: flex; justify-content: space-around; background: #d35400; padding: 10px; border-radius: 8px; color: white; }
+    </style>
+</head>
+<body>
+    <div id="setup">
+        <input id="roomInput" placeholder="Código de Sala (Ej: ABCD)">
+        <input id="nameInput" placeholder="Tu Nombre">
+        <button onclick="join()">UNIRSE AL JUEGO</button>
+    </div>
+
+    <div id="game" style="display:none">
+        <h3>Tu Mano:</h3>
+        <div class="atril"> [A] [B] [C] [E] [I] [R] [S] </div>
+        <hr>
+        <input id="wordInput" placeholder="Escribe tu palabra">
+        <input id="posX" type="number" placeholder="Posición X (0-14)">
+        <input id="posY" type="number" placeholder="Posición Y (0-14)">
+        <button onclick="sendWord()" style="background: #27ae60; color: white;">ENVIAR A LA TV</button>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io();
+        let currentRoom = "";
+
+        function join() {
+            currentRoom = document.getElementById('roomInput').value.toUpperCase();
+            const playerName = document.getElementById('nameInput').value;
+            socket.emit('join-game', { roomCode: currentRoom, playerName });
+        }
+
+        socket.on('joined-success', () => {
+            document.getElementById('setup').style.display = 'none';
+            document.getElementById('game').style.display = 'block';
+        });
+
+        function sendWord() {
+            const word = document.getElementById('wordInput').value;
+            const x = document.getElementById('posX').value;
+            const y = document.getElementById('posY').value;
+            socket.emit('play-word', { roomCode: currentRoom, word, x, y, vertical: false });
+        }
+    </script>
+</body>
+</html>
