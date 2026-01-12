@@ -1,79 +1,50 @@
 <!DOCTYPE html>
-<html lang="es">
+<html>
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scrabble Control</title>
+    <title>Móvil Scrabble</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        body { font-family: sans-serif; background: #2c3e50; color: white; text-align: center; padding: 20px; }
-        input, button, select { width: 100%; padding: 15px; margin: 10px 0; border-radius: 8px; border: none; font-size: 1em; }
-        .atril { display: flex; justify-content: center; gap: 5px; margin: 20px 0; }
-        .ficha { background: #f1c40f; color: black; padding: 10px; font-weight: bold; border-radius: 4px; min-width: 20px; }
-        .btn-play { background: #27ae60; color: white; font-weight: bold; }
-        .btn-play:disabled { background: #95a5a6; }
+        body { font-family: sans-serif; background: #2c3e50; color: white; padding: 15px; text-align: center; }
+        input, button, select { width: 100%; padding: 12px; margin: 8px 0; border-radius: 5px; border: none; }
+        .atril { display: flex; justify-content: center; gap: 5px; margin: 15px 0; flex-wrap: wrap; }
+        .f { background: #f1c40f; color: black; padding: 10px; font-weight: bold; border-radius: 3px; min-width: 25px; }
+        .turn-msg { font-weight: bold; color: #27ae60; }
     </style>
 </head>
 <body>
     <div id="setup">
-        <h2>Unirse a la Sala</h2>
-        <input id="room" placeholder="CÓDIGO (ABCD)">
-        <input id="name" placeholder="TU NOMBRE">
-        <button onclick="join()" style="background:#e67e22; color:white">ENTRAR</button>
+        <input id="r" placeholder="CÓDIGO SALA">
+        <input id="n" placeholder="TU NOMBRE">
+        <button onclick="join()" style="background:#e67e22; color:white">UNIRSE</button>
     </div>
-
     <div id="game" style="display:none">
+        <div id="msg" class="turn-msg"></div>
         <div id="atril" class="atril"></div>
-        <input id="word" placeholder="PALABRA">
-        <div style="display:flex; gap:10px">
-            <input id="x" type="number" placeholder="X (0-14)">
-            <input id="y" type="number" placeholder="Y (0-14)">
-        </div>
-        <select id="vert"><option value="false">Horizontal</option><option value="true">Vertical</option></select>
-        <button id="playBtn" class="btn-play" onclick="play()">ENVIAR JUGADA</button>
+        <button onclick="shuffle()" style="background:#3498db; color:white">MEZCLAR</button>
+        <input id="w" placeholder="PALABRA">
+        <div style="display:flex; gap:10px"><input id="x" type="number" placeholder="X"><input id="y" type="number" placeholder="Y"></div>
+        <select id="v"><option value="false">Horizontal</option><option value="true">Vertical</option></select>
+        <button id="pBtn" onclick="send()" style="background:#27ae60; color:white">ENVIAR</button>
     </div>
 
     <script>
-        const socket = io();
-        let myRoom = "";
-
-        function join() {
-            myRoom = document.getElementById('room').value.toUpperCase();
-            socket.emit('join-game', { roomCode: myRoom, playerName: document.getElementById('name').value });
-        }
-
-        socket.on('joined-success', data => {
-            document.getElementById('setup').style.display = 'none';
-            document.getElementById('game').style.display = 'block';
-            renderAtril(data.letras);
-        });
-
-        function renderAtril(letras) {
-            document.getElementById('atril').innerHTML = letras.map(l => `<div class="ficha">${l}</div>`).join('');
-        }
-
-        socket.on('nuevas-letras', renderAtril);
+        const socket = io(); let myL = [];
+        function join() { socket.emit('join-game', { roomCode: document.getElementById('r').value.toUpperCase(), playerName: document.getElementById('n').value }); }
+        socket.on('joined-success', d => { document.getElementById('setup').style.display='none'; document.getElementById('game').style.display='block'; myL = d.letras; render(); });
+        socket.on('nuevas-letras', l => { myL = l; render(); });
         socket.on('error-juego', m => alert(m));
-
-        socket.on('update-game-state', state => {
-            const isMyTurn = socket.id === state.turnOwner;
-            document.getElementById('playBtn').disabled = !isMyTurn;
-            document.getElementById('playBtn').innerText = isMyTurn ? "¡TU TURNO! ENVIAR" : "ESPERA TU TURNO...";
+        socket.on('update-game-state', s => {
+            const myTurn = socket.id === s.turnOwner;
+            document.getElementById('pBtn').disabled = !myTurn;
+            document.getElementById('msg').innerText = myTurn ? "¡ES TU TURNO!" : "Espera tu turno...";
         });
-
-        function play() {
-            socket.emit('play-word', {
-                roomCode: myRoom,
-                word: document.getElementById('word').value,
-                x: document.getElementById('x').value,
-                y: document.getElementById('y').value,
-                vertical: document.getElementById('vert').value === "true"
-            });
-            document.getElementById('word').value = "";
+        function render() { document.getElementById('atril').innerHTML = myL.map(l => `<div class="f">${l}</div>`).join(''); }
+        function shuffle() { myL.sort(() => Math.random() - 0.5); render(); }
+        function send() {
+            socket.emit('play-word', { roomCode: document.getElementById('r').value.toUpperCase(), word: document.getElementById('w').value.toUpperCase(), x: document.getElementById('x').value, y: document.getElementById('y').value, vertical: document.getElementById('v').value === "true" });
+            document.getElementById('w').value = "";
         }
-        
-        socket.on('game-over', () => {
-            document.body.innerHTML = "<h1>JUEGO TERMINADO</h1><p>Mira la TV para ver los resultados.</p>";
-        });
     </script>
 </body>
 </html>
