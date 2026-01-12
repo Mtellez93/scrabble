@@ -7,83 +7,142 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <style>
-        body { font-family: sans-serif; background: #1e272e; color: white; text-align: center; padding: 10px; margin: 0; }
-        input, button, select { width: 100%; padding: 15px; margin: 5px 0; border-radius: 10px; border: none; font-size: 1.1em; box-sizing: border-box; }
-        .atril { display: flex; justify-content: center; gap: 5px; margin: 10px 0; min-height: 50px; background: #2d3436; padding: 10px; border-radius: 12px; }
-        .ficha { background: #f1c40f; color: #2c3e50; padding: 10px; font-weight: bold; border-radius: 5px; min-width: 20px; cursor: grab; }
-        .btn-play { background: #27ae60; color: white; font-weight: bold; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #1e272e; color: white; text-align: center; padding: 10px; margin: 0; }
+        input, button, select { width: 100%; padding: 15px; margin: 5px 0; border-radius: 10px; border: none; font-size: 16px; /* 16px evita el zoom automático en iPhone */ box-sizing: border-box; -webkit-appearance: none; }
+        .atril { display: flex; justify-content: center; gap: 5px; margin: 10px 0; min-height: 50px; background: #2d3436; padding: 10px; border-radius: 12px; touch-action: none; }
+        .ficha { background: #f1c40f; color: #2c3e50; padding: 10px; font-weight: bold; border-radius: 5px; min-width: 25px; cursor: grab; }
+        .btn-play { background: #27ae60 !important; color: white; font-weight: bold; cursor: pointer; }
+        .btn-shuffle { background: #34495e; color: white; font-size: 0.9em; padding: 10px; }
         #msg { padding: 10px; border-radius: 10px; font-weight: bold; margin-bottom: 5px; }
         .mi-turno { background: #27ae60; } .otro-turno { background: #c0392b; }
+        select { background-color: white; color: black; }
     </style>
 </head>
 <body>
     <div id="setup">
         <h2>SCRABBLE</h2>
-        <input id="room" placeholder="CÓDIGO SALA" style="text-transform: uppercase;">
-        <input id="name" placeholder="NOMBRE">
-        <button onclick="join()" style="background:#3498db; color:white">ENTRAR</button>
+        <input id="room" type="text" placeholder="CÓDIGO SALA" autocomplete="off" style="text-transform: uppercase;">
+        <input id="name" type="text" placeholder="TU NOMBRE" autocomplete="off">
+        <button type="button" onclick="join()" style="background:#3498db; color:white">ENTRAR</button>
     </div>
+
     <div id="game" style="display:none">
         <div id="msg">...</div>
         <div id="atril" class="atril"></div>
-        <input id="word" placeholder="PALABRA" style="text-transform: uppercase;">
+        <button type="button" class="btn-shuffle" onclick="mezclar()">MEZCLAR ATRIL 🔀</button>
+        
+        <input id="word" type="text" placeholder="ESCRIBE PALABRA" autocomplete="off" style="text-transform: uppercase;">
+        
         <div style="display:flex; gap:5px">
             <select id="colSel"></select>
             <select id="rowSel"></select>
         </div>
-        <select id="v"><option value="false">HORIZONTAL</option><option value="true">VERTICAL</option></select>
-        <button id="pBtn" class="btn-play" onclick="send()">ENVIAR JUGADA</button>
-        <button onclick="socket.emit('pass-turn', myR)" style="background:#e67e22; color:white">PASAR TURNO</button>
+        
+        <select id="v">
+            <option value="false">HORIZONTAL</option>
+            <option value="true">VERTICAL</option>
+        </select>
+        
+        <button id="pBtn" type="button" class="btn-play" onclick="send()">ENVIAR JUGADA</button>
+        <button type="button" onclick="socket.emit('pass-turn', myR)" style="background:#e67e22; color:white">PASAR TURNO</button>
     </div>
 
     <script>
-        const socket = io(); let myL = [], myR = "";
+        const socket = io();
+        let myL = [], myR = "";
         const colS = document.getElementById('colSel');
         const rowS = document.getElementById('rowSel');
-        new Sortable(document.getElementById('atril'), { animation: 150 });
 
-        colS.innerHTML = '<option value="">COL</option>' + Array.from({length:15}, (_,i) => `<option value="${String.fromCharCode(65+i)}">${String.fromCharCode(65+i)}</option>`).join('');
-        rowS.innerHTML = '<option value="">FILA</option>' + Array.from({length:15}, (_,i) => `<option value="${i}">${i}</option>`).join('');
+        // Inicializar Sortable con soporte para iPhone
+        new Sortable(document.getElementById('atril'), { 
+            animation: 150,
+            delay: 50, // Pequeño retraso para distinguir entre scroll y arrastre
+            delayOnTouchOnly: true
+        });
+
+        // Llenar selectores manualmente para evitar errores de renderizado
+        let colsHTML = '<option value="">COL</option>';
+        for(let i=0; i<15; i++) {
+            let letra = String.fromCharCode(65+i);
+            colsHTML += `<option value="${letra}">${letra}</option>`;
+        }
+        colS.innerHTML = colsHTML;
+
+        let rowsHTML = '<option value="">FILA</option>';
+        for(let i=0; i<15; i++) {
+            rowsHTML += `<option value="${i}">${i}</option>`;
+        }
+        rowS.innerHTML = rowsHTML;
 
         function join() { 
-            myR = document.getElementById('room').value.toUpperCase(); 
-            const n = document.getElementById('name').value;
-            if(!myR || !n) return alert("Llena los campos");
-            socket.emit('join-game', { roomCode: myR, playerName: n }); 
+            const roomInput = document.getElementById('room').value.trim().toUpperCase();
+            const nameInput = document.getElementById('name').value.trim();
+            if(!roomInput || !nameInput) return alert("Llena los campos");
+            myR = roomInput;
+            socket.emit('join-game', { roomCode: myR, playerName: nameInput }); 
         }
 
         socket.on('joined-success', d => { 
             document.getElementById('setup').style.display='none'; 
             document.getElementById('game').style.display='block'; 
-            myL = d.letras; render(); 
+            myL = d.letras; 
+            render(); 
         });
 
         socket.on('update-game-state', s => {
             const isT = socket.id === s.turnOwner;
-            document.getElementById('pBtn').disabled = !isT;
+            const btn = document.getElementById('pBtn');
             const m = document.getElementById('msg');
-            m.innerText = isT ? "¡TU TURNO!" : "ESPERA...";
+            
+            btn.disabled = !isT;
+            btn.style.opacity = isT ? "1" : "0.5";
+            
+            m.innerText = isT ? "¡ES TU TURNO!" : "ESPERANDO TURNO...";
             m.className = isT ? "mi-turno" : "otro-turno";
         });
 
-        socket.on('nuevas-letras', l => { myL = l; render(); });
+        socket.on('nuevas-letras', l => { 
+            myL = l; 
+            render(); 
+        });
+
         socket.on('error-juego', m => alert(m));
 
-        function render() { document.getElementById('atril').innerHTML = myL.map(l => `<div class="ficha">${l}</div>`).join(''); }
+        function render() { 
+            document.getElementById('atril').innerHTML = myL.map(l => `<div class="ficha">${l}</div>`).join(''); 
+        }
+
+        function mezclar() {
+            myL.sort(() => Math.random() - 0.5);
+            render();
+        }
 
         function send() {
-            const w = document.getElementById('word').value.trim();
-            const c = colS.value;
-            const r = rowS.value;
-            const vert = document.getElementById('v').value === "true";
+            // Captura forzada de valores para iOS
+            const wordInput = document.getElementById('word');
+            const w = wordInput.value.trim().toUpperCase();
+            const c = colS.options[colS.selectedIndex].value;
+            const r = rowS.options[rowS.selectedIndex].value;
+            const isVert = document.getElementById('v').value === "true";
 
             if(!w || !c || r === "") {
-                alert("Selecciona Palabra, Columna y Fila");
+                alert("Completa: Palabra, Columna y Fila");
                 return;
             }
 
-            socket.emit('play-word', { roomCode: myR, word: w, col: c, row: r, vertical: vert });
-            document.getElementById('word').value = "";
+            console.log("Enviando:", w, c, r, isVert);
+            
+            socket.emit('play-word', { 
+                roomCode: myR, 
+                word: w, 
+                col: c, 
+                row: r, 
+                vertical: isVert 
+            });
+
+            // Limpiar y ocultar teclado
+            wordInput.value = "";
+            wordInput.blur(); 
         }
     </script>
 </body>
