@@ -38,6 +38,11 @@ function generarLetras(n) {
     return Array.from({length: n}, () => bolsa.charAt(Math.floor(Math.random() * bolsa.length)));
 }
 
+// Utilidad para convertir Letra de Columna a Número (A->0, B->1...)
+function letraANumero(letra) {
+    return letra.toUpperCase().charCodeAt(0) - 65;
+}
+
 io.on('connection', (socket) => {
     socket.on('create-game', () => {
         const roomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
@@ -67,22 +72,11 @@ io.on('connection', (socket) => {
     socket.on('pass-turn', (roomCode) => {
         const game = games[roomCode];
         if (!game || game.turnOrder[game.currentTurnIdx] !== socket.id) return;
-
         const player = game.players[socket.id];
-        
-        // Límite de 12 fichas
-        if (player.letras.length < 12) {
-            const nuevaFicha = generarLetras(1);
-            player.letras.push(...nuevaFicha);
-        }
-
+        if (player.letras.length < 12) player.letras.push(...generarLetras(1));
         game.currentTurnIdx = (game.currentTurnIdx + 1) % game.turnOrder.length;
-
         socket.emit('nuevas-letras', player.letras);
-        io.to(roomCode).emit('update-game-state', { 
-            players: Object.values(game.players), 
-            turnOwner: game.turnOrder[game.currentTurnIdx] 
-        });
+        io.to(roomCode).emit('update-game-state', { players: Object.values(game.players), turnOwner: game.turnOrder[game.currentTurnIdx] });
         io.to(roomCode).emit('player-passed', player.name);
     });
 
@@ -92,6 +86,10 @@ io.on('connection', (socket) => {
 
         const palabraArr = data.word.toUpperCase().trim().split('');
         const player = game.players[socket.id];
+        
+        // Conversión de columna (Letra -> Número)
+        const startX = letraANumero(data.col);
+        const startY = parseInt(data.row);
 
         if (diccionario.length > 0 && !diccionario.includes(data.word.toUpperCase())) {
             return socket.emit('error-juego', 'La palabra no existe.');
@@ -102,14 +100,15 @@ io.on('connection', (socket) => {
         let letrasUsadasDelAtril = [];
 
         for (let i = 0; i < palabraArr.length; i++) {
-            let x = data.vertical ? parseInt(data.x) : parseInt(data.x) + i;
-            let y = data.vertical ? parseInt(data.y) + i : parseInt(data.y);
+            let x = data.vertical ? startX : startX + i;
+            let y = data.vertical ? startY + i : startY;
             let letraDeseada = palabraArr[i];
+            
             if (x > 14 || y > 14 || x < 0 || y < 0) return socket.emit('error-juego', 'Fuera del tablero');
 
             let letraEnTablero = game.board[y][x];
             if (letraEnTablero !== null) {
-                if (letraEnTablero !== letraDeseada) return socket.emit('error-juego', `Choque en columna ${x}, renglón ${y}`);
+                if (letraEnTablero !== letraDeseada) return socket.emit('error-juego', `Choque en ${data.col}${y}`);
             } else {
                 const idx = atrilTemp.indexOf(letraDeseada);
                 if (idx > -1) {
@@ -122,17 +121,16 @@ io.on('connection', (socket) => {
             }
         }
 
-        if (letrasNuevasColocadas === 0) return socket.emit('error-juego', 'Debes colocar al menos una letra nueva');
+        if (letrasNuevasColocadas === 0) return socket.emit('error-juego', 'Debes usar letras del atril');
 
         let puntosBase = 0;
         let multiPalabra = 1;
         palabraArr.forEach((letra, i) => {
-            let x = data.vertical ? parseInt(data.x) : parseInt(data.x) + i;
-            let y = data.vertical ? parseInt(data.y) + i : parseInt(data.y);
+            let x = data.vertical ? startX : startX + i;
+            let y = data.vertical ? startY + i : startY;
             game.board[y][x] = letra;
             let m = MULTIPLICADORES[`${x},${y}`];
             let p = VALORES_LETRAS[letra] || 1;
-            if (m === "DL") p *= 2; if (m === "TL") p *= 3;
             if (m === "DP") multiPalabra *= 2; if (m === "TP") multiPalabra *= 3;
             puntosBase += p;
         });
@@ -144,10 +142,13 @@ io.on('connection', (socket) => {
         player.letras = [...atrilTemp, ...generarLetras(letrasUsadasDelAtril.length)];
         game.currentTurnIdx = (game.currentTurnIdx + 1) % game.turnOrder.length;
 
-        io.to(data.roomCode).emit('new-word-on-board', { ...data, bingo: letrasUsadasDelAtril.length === 7, puntosTurno: total });
+        io.to(data.roomCode).emit('new-word-on-board', { 
+            word: data.word, x: startX, y: startY, vertical: data.vertical, 
+            bingo: letrasUsadasDelAtril.length === 7, puntosTurno: total 
+        });
         io.to(data.roomCode).emit('update-game-state', { players: Object.values(game.players), turnOwner: game.turnOrder[game.currentTurnIdx] });
         socket.emit('nuevas-letras', player.letras);
     });
 });
 
-server.listen(process.env.PORT || 3000, () => console.log('Servidor Scrabble Online'));
+server.listen(process.env.PORT || 3000, () => console.log('Servidor Scrabble Letras Activo'));
