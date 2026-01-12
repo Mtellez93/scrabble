@@ -1,50 +1,132 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Móvil Scrabble</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Mando Scrabble</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        body { font-family: sans-serif; background: #2c3e50; color: white; padding: 15px; text-align: center; }
-        input, button, select { width: 100%; padding: 12px; margin: 8px 0; border-radius: 5px; border: none; }
-        .atril { display: flex; justify-content: center; gap: 5px; margin: 15px 0; flex-wrap: wrap; }
-        .f { background: #f1c40f; color: black; padding: 10px; font-weight: bold; border-radius: 3px; min-width: 25px; }
-        .turn-msg { font-weight: bold; color: #27ae60; }
+        body { font-family: sans-serif; background: #1e272e; color: white; margin: 0; padding: 20px; text-align: center; }
+        input, button, select { width: 100%; padding: 15px; margin: 10px 0; border-radius: 10px; border: none; font-size: 1.1em; box-sizing: border-box; }
+        
+        .setup-box { margin-top: 20%; }
+        .atril { display: flex; justify-content: center; gap: 8px; margin: 20px 0; flex-wrap: wrap; background: #2d3436; padding: 15px; border-radius: 12px; }
+        .ficha { background: #f1c40f; color: #2c3e50; padding: 12px; font-weight: bold; border-radius: 5px; min-width: 25px; box-shadow: 0 4px #d4ac0d; }
+        
+        .controls { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .btn-play { background: #27ae60; color: white; font-weight: bold; margin-top: 20px; }
+        .btn-play:disabled { background: #7f8c8d; opacity: 0.6; }
+        .btn-shuffle { background: #3498db; color: white; }
+        
+        #msg-turno { margin: 10px 0; font-weight: bold; padding: 10px; border-radius: 5px; }
+        .turno-si { background: #27ae60; color: white; }
+        .turno-no { background: #c0392b; color: white; }
     </style>
 </head>
 <body>
     <div id="setup">
-        <input id="r" placeholder="CÓDIGO SALA">
-        <input id="n" placeholder="TU NOMBRE">
-        <button onclick="join()" style="background:#e67e22; color:white">UNIRSE</button>
+        <h2 style="color:#f1c40f">SCRABBLE PARTY</h2>
+        <input id="room" placeholder="CÓDIGO DE SALA" style="text-transform: uppercase;">
+        <input id="name" placeholder="TU NOMBRE">
+        <button onclick="join()" style="background:#e67e22; color:white">UNIRSE AHORA</button>
     </div>
+
     <div id="game" style="display:none">
-        <div id="msg" class="turn-msg"></div>
+        <div id="msg-turno">Cargando...</div>
+        
         <div id="atril" class="atril"></div>
-        <button onclick="shuffle()" style="background:#3498db; color:white">MEZCLAR</button>
-        <input id="w" placeholder="PALABRA">
-        <div style="display:flex; gap:10px"><input id="x" type="number" placeholder="X"><input id="y" type="number" placeholder="Y"></div>
-        <select id="v"><option value="false">Horizontal</option><option value="true">Vertical</option></select>
-        <button id="pBtn" onclick="send()" style="background:#27ae60; color:white">ENVIAR</button>
+        <button class="btn-shuffle" onclick="shuffleAtril()">MEZCLAR ATRIL</button>
+
+        <hr style="border: 0; border-top: 1px solid #3d4e51; margin: 20px 0;">
+
+        <input id="word" placeholder="ESCRIBE TU PALABRA" style="text-transform: uppercase;">
+        
+        <div class="controls">
+            <input id="posX" type="number" placeholder="COLUMNA (X)">
+            <input id="posY" type="number" placeholder="RENGLÓN (Y)">
+        </div>
+
+        <select id="orient">
+            <option value="false">HORIZONTAL</option>
+            <option value="true">VERTICAL</option>
+        </select>
+
+        <button id="pBtn" class="btn-play" onclick="sendMove()">ENVIAR JUGADA</button>
     </div>
 
     <script>
-        const socket = io(); let myL = [];
-        function join() { socket.emit('join-game', { roomCode: document.getElementById('r').value.toUpperCase(), playerName: document.getElementById('n').value }); }
-        socket.on('joined-success', d => { document.getElementById('setup').style.display='none'; document.getElementById('game').style.display='block'; myL = d.letras; render(); });
-        socket.on('nuevas-letras', l => { myL = l; render(); });
-        socket.on('error-juego', m => alert(m));
-        socket.on('update-game-state', s => {
-            const myTurn = socket.id === s.turnOwner;
-            document.getElementById('pBtn').disabled = !myTurn;
-            document.getElementById('msg').innerText = myTurn ? "¡ES TU TURNO!" : "Espera tu turno...";
-        });
-        function render() { document.getElementById('atril').innerHTML = myL.map(l => `<div class="f">${l}</div>`).join(''); }
-        function shuffle() { myL.sort(() => Math.random() - 0.5); render(); }
-        function send() {
-            socket.emit('play-word', { roomCode: document.getElementById('r').value.toUpperCase(), word: document.getElementById('w').value.toUpperCase(), x: document.getElementById('x').value, y: document.getElementById('y').value, vertical: document.getElementById('v').value === "true" });
-            document.getElementById('w').value = "";
+        const socket = io();
+        let currentLetters = [];
+        let myRoom = "";
+
+        function join() {
+            const r = document.getElementById('room').value.toUpperCase();
+            const n = document.getElementById('name').value;
+            if(!r || !n) return alert("Completa los datos");
+            myRoom = r;
+            socket.emit('join-game', { roomCode: r, playerName: n });
         }
+
+        socket.on('joined-success', data => {
+            document.getElementById('setup').style.display = 'none';
+            document.getElementById('game').style.display = 'block';
+            currentLetters = data.letras;
+            renderAtril();
+        });
+
+        socket.on('nuevas-letras', nuevas => {
+            currentLetters = nuevas;
+            renderAtril();
+        });
+
+        socket.on('error-juego', m => alert(m));
+
+        socket.on('update-game-state', state => {
+            const isMyTurn = socket.id === state.turnOwner;
+            const btn = document.getElementById('pBtn');
+            const msg = document.getElementById('msg-turno');
+            
+            btn.disabled = !isMyTurn;
+            if(isMyTurn) {
+                msg.innerText = "¡ES TU TURNO!";
+                msg.className = "turno-si";
+            } else {
+                msg.innerText = "ESPERANDO AL OTRO JUGADOR...";
+                msg.className = "turno-no";
+            }
+        });
+
+        function renderAtril() {
+            const div = document.getElementById('atril');
+            div.innerHTML = currentLetters.map(l => `<div class="ficha">${l}</div>`).join('');
+        }
+
+        function shuffleAtril() {
+            currentLetters.sort(() => Math.random() - 0.5);
+            renderAtril();
+        }
+
+        function sendMove() {
+            const w = document.getElementById('word').value.toUpperCase().trim();
+            const x = document.getElementById('posX').value;
+            const y = document.getElementById('posY').value;
+            const v = document.getElementById('orient').value === "true";
+
+            if(!w || x==="" || y==="") return alert("Faltan datos de posición");
+
+            socket.emit('play-word', {
+                roomCode: myRoom,
+                word: w,
+                x: x,
+                y: y,
+                vertical: v
+            });
+            document.getElementById('word').value = "";
+        }
+
+        socket.on('game-over', () => {
+            document.body.innerHTML = "<h1 style='margin-top:40%'>¡FIN DEL JUEGO!</h1><p>Mira la TV para ver el podio.</p>";
+        });
     </script>
 </body>
 </html>
