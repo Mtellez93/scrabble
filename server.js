@@ -29,9 +29,7 @@ let diccionario = [];
 try {
     const data = fs.readFileSync('./palabras.json', 'utf8');
     diccionario = JSON.parse(data).map(p => p.toUpperCase());
-} catch (e) {
-    console.log("Diccionario no cargado.");
-}
+} catch (e) { console.log("Diccionario no cargado."); }
 
 let games = {};
 
@@ -66,6 +64,25 @@ io.on('connection', (socket) => {
         }
     });
 
+    // --- NUEVA LÓGICA PARA PASAR TURNO ---
+    socket.on('pass-turn', (roomCode) => {
+        const game = games[roomCode];
+        if (!game || game.turnOrder[game.currentTurnIdx] !== socket.id) return;
+
+        const player = game.players[socket.id];
+        const nuevaFicha = generarLetras(1);
+        player.letras.push(...nuevaFicha); // Añade una ficha extra
+
+        game.currentTurnIdx = (game.currentTurnIdx + 1) % game.turnOrder.length;
+
+        socket.emit('nuevas-letras', player.letras);
+        io.to(roomCode).emit('update-game-state', { 
+            players: Object.values(game.players), 
+            turnOwner: game.turnOrder[game.currentTurnIdx] 
+        });
+        io.to(roomCode).emit('player-passed', player.name);
+    });
+
     socket.on('play-word', (data) => {
         const game = games[data.roomCode];
         if (!game || game.turnOrder[game.currentTurnIdx] !== socket.id) return;
@@ -81,24 +98,16 @@ io.on('connection', (socket) => {
         let letrasNuevasColocadas = 0;
         let letrasUsadasDelAtril = [];
 
-        // --- LÓGICA INTELIGENTE DE VALIDACIÓN ---
         for (let i = 0; i < palabraArr.length; i++) {
             let x = data.vertical ? parseInt(data.x) : parseInt(data.x) + i;
             let y = data.vertical ? parseInt(data.y) + i : parseInt(data.y);
             let letraDeseada = palabraArr[i];
-
             if (x > 14 || y > 14) return socket.emit('error-juego', 'Fuera del tablero');
 
             let letraEnTablero = game.board[y][x];
-
             if (letraEnTablero !== null) {
-                // Si hay algo, tiene que ser la misma letra
-                if (letraEnTablero !== letraDeseada) {
-                    return socket.emit('error-juego', `Choque en ${x},${y}: Hay una ${letraEnTablero} y quieres poner ${letraDeseada}`);
-                }
-                // Si es la misma, no hacemos nada (la usamos del tablero)
+                if (letraEnTablero !== letraDeseada) return socket.emit('error-juego', `Choque en ${x},${y}`);
             } else {
-                // Si la casilla está vacía, debemos tener la letra en el atril
                 const idx = atrilTemp.indexOf(letraDeseada);
                 if (idx > -1) {
                     atrilTemp.splice(idx, 1);
@@ -112,7 +121,6 @@ io.on('connection', (socket) => {
 
         if (letrasNuevasColocadas === 0) return socket.emit('error-juego', 'Debes colocar al menos una letra nueva');
 
-        // --- CÁLCULO DE PUNTOS ---
         let puntosBase = 0;
         let multiPalabra = 1;
         palabraArr.forEach((letra, i) => {
@@ -121,10 +129,8 @@ io.on('connection', (socket) => {
             game.board[y][x] = letra;
             let m = MULTIPLICADORES[`${x},${y}`];
             let p = VALORES_LETRAS[letra] || 1;
-            if (m === "DL") p *= 2;
-            if (m === "TL") p *= 3;
-            if (m === "DP") multiPalabra *= 2;
-            if (m === "TP") multiPalabra *= 3;
+            if (m === "DL") p *= 2; if (m === "TL") p *= 3;
+            if (m === "DP") multiPalabra *= 2; if (m === "TP") multiPalabra *= 3;
             puntosBase += p;
         });
 
@@ -132,6 +138,7 @@ io.on('connection', (socket) => {
         if (letrasUsadasDelAtril.length === 7) total += 50;
 
         player.score += total;
+        // Reponer letras hasta volver a tener al menos 7, o simplemente reponer las usadas
         player.letras = [...atrilTemp, ...generarLetras(letrasUsadasDelAtril.length)];
         game.currentTurnIdx = (game.currentTurnIdx + 1) % game.turnOrder.length;
 
@@ -141,4 +148,4 @@ io.on('connection', (socket) => {
     });
 });
 
-server.listen(process.env.PORT || 3000, () => console.log('Servidor Scrabble Pro Activo'));
+server.listen(process.env.PORT || 3000, () => console.log('Servidor Activo'));
