@@ -1,65 +1,155 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
-    <title>Scrabble TV</title>
+    <meta charset="UTF-8">
+    <title>Scrabble TV Pro - Game Board</title>
     <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <style>
-        body { background: #1a1a1a; color: white; font-family: sans-serif; display: flex; flex-direction: column; align-items: center; }
-        .grid-container { display: grid; grid-template-columns: 40px 1fr; grid-template-rows: 40px 1fr; }
-        .coords-h { grid-column: 2; display: flex; }
-        .coords-v { grid-row: 2; display: flex; flex-direction: column; }
-        .label { width: 45px; height: 40px; display: flex; align-items: center; justify-content: center; color: #f1c40f; font-weight: bold; }
-        .v-label { height: 45px; width: 40px; }
-        #board { display: grid; grid-template-columns: repeat(15, 45px); grid-template-rows: repeat(15, 45px); gap: 2px; background: #34495e; padding: 5px; }
-        .cell { width: 45px; height: 45px; background: #ecf0f1; color: #2c3e50; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.1em; }
-        .tp { background: #e74c3c !important; } .dp { background: #ff7675 !important; }
-        .bingo-alert { position: fixed; top: 20%; background: #f1c40f; color: black; padding: 20px; font-size: 3em; font-weight: bold; border-radius: 10px; display: none; z-index: 10; animation: pop 1s; }
-        @keyframes pop { 0% { transform: scale(0); } 100% { transform: scale(1.2); } }
-        .active-player { border: 4px solid #f1c40f; padding: 10px; background: #2c3e50; }
+        body { 
+            background: #121212; color: white; font-family: 'Segoe UI', sans-serif; 
+            display: flex; flex-direction: column; align-items: center; margin: 0; padding: 10px;
+        }
+
+        .layout { display: flex; gap: 40px; align-items: flex-start; margin-top: 10px; }
+
+        /* TABLERO Y COORDENADAS */
+        .board-container {
+            display: grid;
+            grid-template-columns: 40px 1fr;
+            grid-template-rows: 40px 1fr;
+            background: #2d3436; padding: 15px; border-radius: 12px;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.7);
+        }
+        .coords-x { grid-column: 2; display: grid; grid-template-columns: repeat(15, 45px); gap: 2px; }
+        .coords-y { grid-row: 2; display: grid; grid-template-rows: repeat(15, 45px); gap: 2px; }
+        .label { display: flex; align-items: center; justify-content: center; font-weight: bold; color: #f1c40f; font-size: 1.1em; }
+        
+        #board { 
+            grid-row: 2; grid-column: 2; display: grid; 
+            grid-template-columns: repeat(15, 45px); grid-template-rows: repeat(15, 45px); 
+            gap: 2px; background: #34495e;
+        }
+
+        .cell { 
+            width: 45px; height: 45px; background: #ecf0f1; color: #2c3e50; 
+            display: flex; align-items: center; justify-content: center; 
+            font-weight: bold; font-size: 1.3em; border-radius: 4px;
+        }
+        .tp { background: #e74c3c !important; color: white; }
+        .dp { background: #ff7675 !important; }
+        .ficha { background: #f1c40f !important; animation: pop 0.4s ease-out; }
+        @keyframes pop { 0% { transform: scale(0.5); } 100% { transform: scale(1); } }
+
+        /* PANEL LATERAL */
+        .side-panel { width: 300px; display: flex; flex-direction: column; gap: 20px; }
+        
+        .panel-box { background: #1e272e; padding: 15px; border-radius: 10px; border-left: 5px solid #f1c40f; }
+        .panel-box h3 { margin: 0 0 10px 0; font-size: 0.9em; text-transform: uppercase; color: #f1c40f; letter-spacing: 1px; }
+
+        /* ESTILOS DEL HISTORIAL */
+        #history-list { height: 300px; overflow-y: auto; font-size: 1.1em; }
+        .history-item { 
+            padding: 5px 0; border-bottom: 1px solid #333; 
+            display: flex; justify-content: space-between; animation: slideIn 0.3s ease;
+        }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+        .word-val { color: #27ae60; font-weight: bold; }
+
+        /* PUNTUACIONES */
+        .player-card { padding: 10px; margin-bottom: 10px; background: #2d3436; border-radius: 5px; }
+        .active-turn { border: 2px solid #f1c40f; box-shadow: 0 0 10px #f1c40f; }
+
+        #bingo-msg {
+            position: fixed; top: 10%; background: #f1c40f; color: black;
+            padding: 15px 40px; font-size: 3em; font-weight: 900; border-radius: 50px;
+            display: none; z-index: 100; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
     </style>
 </head>
 <body>
-    <div id="bingo" class="bingo-alert">¡BINGO! +50 pts</div>
-    <h1>SALA: <span id="room-id">--</span></h1>
-    <div class="grid-container">
-        <div></div>
-        <div id="h-labels" class="coords-h"></div>
-        <div id="v-labels" class="coords-v"></div>
-        <div id="board"></div>
+    <div id="bingo-msg">¡BINGO! +50</div>
+    <h1 style="margin: 5px;">SALA: <span id="room-id" style="color:#f1c40f">--</span></h1>
+
+    <div class="layout">
+        <div class="board-container">
+            <div></div>
+            <div id="labels-x" class="coords-x"></div>
+            <div id="labels-y" class="coords-y"></div>
+            <div id="board"></div>
+        </div>
+
+        <div class="side-panel">
+            <div class="panel-box">
+                <h3>Jugadores</h3>
+                <div id="players"></div>
+            </div>
+
+            <div class="panel-box">
+                <h3>Historial de Palabras</h3>
+                <div id="history-list"></div>
+            </div>
+        </div>
     </div>
-    <div id="players" style="display:flex; gap:20px; margin-top:20px;"></div>
 
     <script>
         const socket = io();
         const board = document.getElementById('board');
-        const hL = document.getElementById('h-labels'), vL = document.getElementById('v-labels');
         
-        for(let i=0; i<15; i++) {
-            hL.innerHTML += `<div class="label">${i}</div>`;
-            vL.innerHTML += `<div class="label v-label">${i}</div>`;
-            for(let j=0; j<15; j++) {
-                const c = document.createElement('div');
-                c.className = 'cell'; c.id = `cell-${j}-${i}`;
-                if ((j==0||j==14)&&(i==0||i==14)) c.classList.add('tp');
-                board.appendChild(c);
+        // Generar coordenadas y celdas
+        for (let i = 0; i < 15; i++) {
+            document.getElementById('labels-x').innerHTML += `<div class="label">${i}</div>`;
+            document.getElementById('labels-y').innerHTML += `<div class="label">${i}</div>`;
+            for (let j = 0; j < 15; j++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.id = `cell-${j}-${i}`;
+                if((j==0||j==7||j==14) && (i==0||i==7||i==14) && !(j==7&&i==7)) cell.classList.add('tp');
+                board.appendChild(cell);
             }
         }
 
         socket.emit('create-game');
         socket.on('game-created', code => document.getElementById('room-id').innerText = code);
-        socket.on('update-game-state', s => {
-            document.getElementById('players').innerHTML = s.players.map(p => `<div class="${p.id==s.turnOwner?'active-player':''}">${p.name}: ${p.score}</div>`).join('');
+
+        socket.on('update-game-state', state => {
+            document.getElementById('players').innerHTML = state.players.map(p => `
+                <div class="player-card ${p.id === state.turnOwner ? 'active-turn' : ''}">
+                    <b>${p.name}</b>: ${p.score} pts
+                </div>
+            `).join('');
         });
-        socket.on('new-word-on-board', d => {
-            if(d.bingo) { 
-                document.getElementById('bingo').style.display='block';
-                setTimeout(()=>document.getElementById('bingo').style.display='none', 2000);
+
+        socket.on('new-word-on-board', data => {
+            if (data.bingo) {
+                document.getElementById('bingo-msg').style.display = 'block';
+                setTimeout(() => document.getElementById('bingo-msg').style.display = 'none', 2000);
             }
-            d.word.split('').forEach((l, i) => {
-                const x = d.vertical ? d.x : parseInt(d.x)+i, y = d.vertical ? parseInt(d.y)+i : d.y;
-                document.getElementById(`cell-${x}-${y}`).innerText = l.toUpperCase();
-                document.getElementById(`cell-${x}-${y}`).style.background = "#f1c40f";
+
+            // Agregar al historial visual
+            const history = document.getElementById('history-list');
+            const item = document.createElement('div');
+            item.className = 'history-item';
+            item.innerHTML = `<span>${data.word.toUpperCase()}</span> <span class="word-val">+${data.puntosTurno}</span>`;
+            history.prepend(item); // La más nueva arriba
+
+            // Dibujar en tablero
+            data.word.split('').forEach((letra, i) => {
+                const x = data.vertical ? parseInt(data.x) : parseInt(data.x) + i;
+                const y = data.vertical ? parseInt(data.y) + i : parseInt(data.y);
+                const cell = document.getElementById(`cell-${x}-${y}`);
+                if (cell) {
+                    setTimeout(() => {
+                        cell.innerText = letra.toUpperCase();
+                        cell.classList.add('ficha');
+                    }, i * 150);
+                }
             });
+        });
+
+        socket.on('game-over', podio => {
+            confetti({ particleCount: 200, spread: 70, origin: { y: 0.6 } });
+            alert("¡JUEGO TERMINADO! Ganador: " + podio[0].name);
         });
     </script>
 </body>
