@@ -38,7 +38,6 @@ function generarLetras(n) {
     return Array.from({length: n}, () => bolsa.charAt(Math.floor(Math.random() * bolsa.length)));
 }
 
-// Utilidad para convertir Letra de Columna a Número (A->0, B->1...)
 function letraANumero(letra) {
     return letra.toUpperCase().charCodeAt(0) - 65;
 }
@@ -86,8 +85,6 @@ io.on('connection', (socket) => {
 
         const palabraArr = data.word.toUpperCase().trim().split('');
         const player = game.players[socket.id];
-        
-        // Conversión de columna (Letra -> Número)
         const startX = letraANumero(data.col);
         const startY = parseInt(data.row);
 
@@ -121,7 +118,7 @@ io.on('connection', (socket) => {
             }
         }
 
-        if (letrasNuevasColocadas === 0) return socket.emit('error-juego', 'Debes usar letras del atril');
+        if (letrasNuevasColocadas === 0) return socket.emit('error-juego', 'Debes colocar letras nuevas');
 
         let puntosBase = 0;
         let multiPalabra = 1;
@@ -151,4 +148,4 @@ io.on('connection', (socket) => {
     });
 });
 
-server.listen(process.env.PORT || 3000, () => console.log('Servidor Scrabble Letras Activo'));
+server.listen(process.env.PORT || 3000, () => console.log('Servidor Scrabble Online'));
