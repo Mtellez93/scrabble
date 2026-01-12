@@ -1,49 +1,90 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Mando Scrabble</title>
     <script src="/socket.io/socket.io.js"></script>
     <style>
-        body { font-family: sans-serif; background: #1e272e; color: white; text-align: center; padding: 15px; }
-        input, button, select { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: none; box-sizing: border-box; font-size: 1em; }
-        .atril { display: flex; justify-content: center; gap: 5px; margin: 15px 0; flex-wrap: wrap; background: #2d3436; padding: 10px; border-radius: 10px; }
-        .ficha { background: #f1c40f; color: #2c3e50; padding: 10px; font-weight: bold; border-radius: 4px; min-width: 20px; }
-        .btn-play { background: #27ae60; color: white; font-weight: bold; }
-        .btn-play:disabled { background: #7f8c8d; }
+        body { font-family: sans-serif; background: #1e272e; color: white; text-align: center; padding: 15px; margin: 0; }
+        input, button, select { width: 100%; padding: 15px; margin: 8px 0; border-radius: 10px; border: none; box-sizing: border-box; font-size: 1.1em; }
+        .atril { display: flex; justify-content: center; gap: 6px; margin: 15px 0; flex-wrap: wrap; background: #2d3436; padding: 15px; border-radius: 12px; min-height: 60px; }
+        .ficha { background: #f1c40f; color: #2c3e50; padding: 12px; font-weight: bold; border-radius: 6px; min-width: 25px; box-shadow: 0 4px #d4ac0d; }
+        .btn-play { background: #27ae60; color: white; font-weight: bold; height: 60px; margin-top: 15px; }
+        .btn-pass { background: #e67e22; color: white; font-weight: bold; }
+        button:disabled { background: #7f8c8d !important; opacity: 0.5; }
+        #msg { padding: 15px; margin-bottom: 10px; font-weight: bold; border-radius: 8px; font-size: 1.2em; }
+        .mi-turno { background: #27ae60; animation: pulse 2s infinite; }
+        .otro-turno { background: #c0392b; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.8; } 100% { opacity: 1; } }
     </style>
 </head>
 <body>
     <div id="setup">
+        <h2 style="color:#f1c40f">SCRABBLE PARTY</h2>
         <input id="room" placeholder="CÓDIGO SALA" style="text-transform: uppercase;">
         <input id="name" placeholder="TU NOMBRE">
-        <button onclick="join()" style="background:#e67e22; color:white">ENTRAR</button>
+        <button onclick="join()" style="background:#3498db; color:white">ENTRAR AL JUEGO</button>
     </div>
     <div id="game" style="display:none">
-        <div id="msg">Cargando...</div>
+        <div id="msg">Conectando...</div>
         <div id="atril" class="atril"></div>
-        <button onclick="shuffle()" style="background:#3498db; color:white">MEZCLAR</button>
+        <div style="display:flex; gap:10px">
+            <button onclick="shuffle()" style="background:#3498db; color:white">MEZCLAR</button>
+            <button id="passBtn" class="btn-pass" onclick="pass()">PASAR</button>
+        </div>
+        <hr style="border:0; border-top:1px solid #34495e; margin: 20px 0;">
         <input id="word" placeholder="TU PALABRA" style="text-transform: uppercase;">
-        <div style="display:flex; gap:10px"><input id="x" type="number" placeholder="X"><input id="y" type="number" placeholder="Y"></div>
-        <select id="v"><option value="false">HORIZONTAL</option><option value="true">VERTICAL</option></select>
+        <div style="display:flex; gap:10px">
+            <input id="posX" type="number" placeholder="COLUMNA">
+            <input id="posY" type="number" placeholder="RENGLÓN">
+        </div>
+        <select id="v">
+            <option value="false">HORIZONTAL</option>
+            <option value="true">VERTICAL</option>
+        </select>
         <button id="pBtn" class="btn-play" onclick="send()">ENVIAR JUGADA</button>
     </div>
     <script>
         const socket = io(); let myL = [], myR = "";
-        function join() { myR = document.getElementById('room').value.toUpperCase(); socket.emit('join-game', { roomCode: myR, playerName: document.getElementById('name').value }); }
-        socket.on('joined-success', d => { document.getElementById('setup').style.display='none'; document.getElementById('game').style.display='block'; myL = d.letras; render(); });
+        function join() { 
+            const r = document.getElementById('room').value.toUpperCase();
+            const n = document.getElementById('name').value;
+            if(!r || !n) return alert("Faltan datos");
+            myR = r; 
+            socket.emit('join-game', { roomCode: r, playerName: n }); 
+        }
+        socket.on('joined-success', d => { 
+            document.getElementById('setup').style.display='none'; 
+            document.getElementById('game').style.display='block'; 
+            myL = d.letras; render(); 
+        });
         socket.on('update-game-state', s => {
             const isT = socket.id === s.turnOwner;
             document.getElementById('pBtn').disabled = !isT;
-            document.getElementById('msg').innerText = isT ? "¡ES TU TURNO!" : "ESPERANDO TURNO...";
+            document.getElementById('passBtn').disabled = !isT;
+            const m = document.getElementById('msg');
+            m.innerText = isT ? "¡ES TU TURNO!" : "ESPERANDO TURNO...";
+            m.className = isT ? "mi-turno" : "otro-turno";
+            
+            // LIMPIAR CAMPOS AL CAMBIAR DE TURNO
+            if(!isT) {
+                document.getElementById('word').value = "";
+                document.getElementById('posX').value = "";
+                document.getElementById('posY').value = "";
+            }
         });
         socket.on('nuevas-letras', l => { myL = l; render(); });
         socket.on('error-juego', m => alert(m));
         function render() { document.getElementById('atril').innerHTML = myL.map(l => `<div class="ficha">${l}</div>`).join(''); }
         function shuffle() { myL.sort(() => Math.random() - 0.5); render(); }
+        function pass() { if(confirm("¿Pasar turno? Recibirás una ficha extra (máx 12).")) socket.emit('pass-turn', myR); }
         function send() {
-            socket.emit('play-word', { roomCode: myR, word: document.getElementById('word').value.toUpperCase(), x: document.getElementById('x').value, y: document.getElementById('y').value, vertical: document.getElementById('v').value === "true" });
-            document.getElementById('word').value = "";
+            const w = document.getElementById('word').value.toUpperCase().trim();
+            const x = document.getElementById('posX').value;
+            const y = document.getElementById('posY').value;
+            if(!w || x==="" || y==="") return alert("Completa la palabra y posición");
+            socket.emit('play-word', { roomCode: myR, word: w, x: x, y: y, vertical: document.getElementById('v').value === "true" });
         }
     </script>
 </body>
