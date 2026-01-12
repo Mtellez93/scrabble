@@ -64,14 +64,17 @@ io.on('connection', (socket) => {
         }
     });
 
-    // --- NUEVA LÓGICA PARA PASAR TURNO ---
     socket.on('pass-turn', (roomCode) => {
         const game = games[roomCode];
         if (!game || game.turnOrder[game.currentTurnIdx] !== socket.id) return;
 
         const player = game.players[socket.id];
-        const nuevaFicha = generarLetras(1);
-        player.letras.push(...nuevaFicha); // Añade una ficha extra
+        
+        // Límite de 12 fichas
+        if (player.letras.length < 12) {
+            const nuevaFicha = generarLetras(1);
+            player.letras.push(...nuevaFicha);
+        }
 
         game.currentTurnIdx = (game.currentTurnIdx + 1) % game.turnOrder.length;
 
@@ -102,11 +105,11 @@ io.on('connection', (socket) => {
             let x = data.vertical ? parseInt(data.x) : parseInt(data.x) + i;
             let y = data.vertical ? parseInt(data.y) + i : parseInt(data.y);
             let letraDeseada = palabraArr[i];
-            if (x > 14 || y > 14) return socket.emit('error-juego', 'Fuera del tablero');
+            if (x > 14 || y > 14 || x < 0 || y < 0) return socket.emit('error-juego', 'Fuera del tablero');
 
             let letraEnTablero = game.board[y][x];
             if (letraEnTablero !== null) {
-                if (letraEnTablero !== letraDeseada) return socket.emit('error-juego', `Choque en ${x},${y}`);
+                if (letraEnTablero !== letraDeseada) return socket.emit('error-juego', `Choque en columna ${x}, renglón ${y}`);
             } else {
                 const idx = atrilTemp.indexOf(letraDeseada);
                 if (idx > -1) {
@@ -138,7 +141,6 @@ io.on('connection', (socket) => {
         if (letrasUsadasDelAtril.length === 7) total += 50;
 
         player.score += total;
-        // Reponer letras hasta volver a tener al menos 7, o simplemente reponer las usadas
         player.letras = [...atrilTemp, ...generarLetras(letrasUsadasDelAtril.length)];
         game.currentTurnIdx = (game.currentTurnIdx + 1) % game.turnOrder.length;
 
@@ -148,4 +150,4 @@ io.on('connection', (socket) => {
     });
 });
 
-server.listen(process.env.PORT || 3000, () => console.log('Servidor Activo'));
+server.listen(process.env.PORT || 3000, () => console.log('Servidor Scrabble Online'));
