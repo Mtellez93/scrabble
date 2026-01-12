@@ -7,17 +7,17 @@
     <style>
         body { background: #121212; color: white; font-family: 'Segoe UI', sans-serif; display: flex; flex-direction: column; align-items: center; margin: 0; padding: 20px; }
         .layout { display: flex; gap: 30px; align-items: flex-start; }
-        .board-container { display: grid; grid-template-columns: 45px 1fr; grid-template-rows: 45px 1fr; background: #2d3436; padding: 15px; border-radius: 10px; }
+        .board-container { display: grid; grid-template-columns: 45px 1fr; grid-template-rows: 45px 1fr; background: #2d3436; padding: 15px; border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
         .coords-x, .coords-y { display: grid; gap: 2px; }
         .coords-x { grid-column: 2; grid-template-columns: repeat(15, 45px); }
         .coords-y { grid-row: 2; grid-template-rows: repeat(15, 45px); }
-        .label { display: flex; align-items: center; justify-content: center; font-weight: bold; color: #f1c40f; font-size: 1.2em; }
+        .label { display: flex; align-items: center; justify-content: center; font-weight: bold; color: #f1c40f; }
         #board { grid-row: 2; grid-column: 2; display: grid; grid-template-columns: repeat(15, 45px); grid-template-rows: repeat(15, 45px); gap: 2px; background: #34495e; }
         .cell { width: 45px; height: 45px; background: #ecf0f1; color: #2c3e50; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 1.4em; border-radius: 4px; }
         .tp { background: #e74c3c !important; } .dp { background: #ff7675 !important; }
         .ficha { background: #f1c40f !important; animation: pop 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
         @keyframes pop { from { transform: scale(0.5); } to { transform: scale(1); } }
-        .side { width: 280px; }
+        .side { width: 300px; }
         .box { background: #1e272e; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-top: 4px solid #f1c40f; }
         .player-card { padding: 10px; margin-top: 5px; background: #2d3436; border-radius: 4px; display: flex; justify-content: space-between; border: 2px solid transparent; }
         .active { border-color: #f1c40f; background: #34495e; }
@@ -32,16 +32,14 @@
         </div>
         <div class="side">
             <div class="box"><h3>JUGADORES</h3><div id="players"></div></div>
-            <div class="box"><h3>HISTORIAL</h3><div id="history"></div></div>
+            <div class="box"><h3>HISTORIAL</h3><div id="history" style="max-height: 400px; overflow-y: auto;"></div></div>
         </div>
     </div>
     <script>
         const socket = io();
         const b = document.getElementById('board');
         for(let i=0; i<15; i++) {
-            // Generar Letras A-O para Columnas
             document.getElementById('lx').innerHTML += `<div class="label">${String.fromCharCode(65 + i)}</div>`;
-            // Generar Números 0-14 para Renglones
             document.getElementById('ly').innerHTML += `<div class="label">${i}</div>`;
             for(let j=0; j<15; j++) {
                 const c = document.createElement('div');
