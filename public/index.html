@@ -20,19 +20,22 @@
         .side { width: 280px; }
         .box { background: #1e272e; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #f1c40f; }
         .player-card { padding: 8px; margin-top: 5px; background: #2d3436; border-radius: 4px; display: flex; justify-content: space-between; }
-        .active { border: 2px solid #f1c40f; }
+        .active { border: 2px solid #f1c40f; box-shadow: 0 0 10px #f1c40f; }
+        #toast { position: fixed; bottom: 20px; background: #e67e22; color: white; padding: 10px 20px; border-radius: 5px; display: none; animation: slideUp 0.5s; }
+        @keyframes slideUp { from { transform: translateY(100px); } to { transform: translateY(0); } }
     </style>
 </head>
 <body>
     <h1 id="room-id">SALA: --</h1>
+    <div id="toast"></div>
     <div class="layout">
         <div class="board-container">
             <div></div><div id="lx" class="coords-x"></div><div id="ly" class="coords-y"></div>
             <div id="board"></div>
         </div>
         <div class="side">
-            <div class="box"><h3>PUNTUACIONES</h3><div id="players"></div></div>
-            <div class="box"><h3>HISTORIAL</h3><div id="history"></div></div>
+            <div class="box"><h3>JUGADORES</h3><div id="players"></div></div>
+            <div class="box"><h3>HISTORIAL</h3><div id="history" style="max-height: 300px; overflow-y: auto;"></div></div>
         </div>
     </div>
     <script>
@@ -56,13 +59,19 @@
                     <span>${p.name}</span><b>${p.score}</b>
                 </div>`).join('');
         });
+        socket.on('player-passed', name => {
+            const t = document.getElementById('toast');
+            t.innerText = `⚠️ ${name} pasó turno (+1 ficha)`;
+            t.style.display = 'block';
+            setTimeout(() => t.style.display = 'none', 3000);
+            document.getElementById('history').innerHTML = `<div style="color:#e67e22">${name} pasó turno</div>` + document.getElementById('history').innerHTML;
+        });
         socket.on('new-word-on-board', d => {
-            const h = document.getElementById('history');
-            h.innerHTML = `<div>${d.word}: +${d.puntosTurno}</div>` + h.innerHTML;
+            document.getElementById('history').innerHTML = `<div>${d.word}: +${d.puntosTurno}</div>` + document.getElementById('history').innerHTML;
             d.word.split('').forEach((l, i) => {
                 const x = d.vertical ? d.x : parseInt(d.x)+i, y = d.vertical ? parseInt(d.y)+i : d.y;
                 const cell = document.getElementById(`cell-${x}-${y}`);
-                if(cell.innerText === "") {
+                if(cell && cell.innerText === "") {
                     cell.innerText = l.toUpperCase();
                     cell.classList.add('ficha');
                 }
