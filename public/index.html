@@ -14,19 +14,17 @@
         .coords-y { grid-row: 2; grid-template-rows: repeat(15, 40px); }
         .label { display: flex; align-items: center; justify-content: center; font-weight: bold; color: #f1c40f; }
         #board { grid-row: 2; grid-column: 2; display: grid; grid-template-columns: repeat(15, 40px); grid-template-rows: repeat(15, 40px); gap: 2px; background: #34495e; }
-        .cell { width: 40px; height: 40px; background: #ecf0f1; color: #2c3e50; display: flex; align-items: center; justify-content: center; font-weight: bold; border-radius: 3px; }
-        .tp { background: #e74c3c !important; } .dp { background: #ff7675 !important; }
-        .ficha { background: #f1c40f !important; border: 1px solid #d4ac0d; }
-        #timer-display { font-size: 3em; font-weight: bold; margin-bottom: 10px; padding: 10px 40px; border: 4px solid #2ecc71; border-radius: 50px; }
-        .timer-warn { color: #e74c3c; border-color: #e74c3c; animation: shake 0.2s infinite; }
-        @keyframes shake { 0%{transform:rotate(0)} 50%{transform:rotate(2deg)} 100%{transform:rotate(-2deg)} }
+        .cell { width: 40px; height: 40px; background: #ecf0f1; color: #2c3e50; display: flex; align-items: center; justify-content: center; font-weight: bold; border-radius: 3px; font-size: 1.2em; }
+        .ficha { background: #f1c40f !important; border: 1px solid #d4ac0d; animation: pop 0.3s ease; }
+        @keyframes pop { from { transform: scale(0); } to { transform: scale(1); } }
+        #timer-display { font-size: 3em; font-weight: bold; margin-bottom: 10px; padding: 10px 40px; border: 4px solid #2ecc71; border-radius: 50px; transition: 0.3s; }
+        .timer-low { color: #e74c3c; border-color: #e74c3c; }
         #winner-screen { position: fixed; inset: 0; background: rgba(0,0,0,0.9); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 100; }
         #winner-screen.active { display: flex; }
     </style>
 </head>
 <body>
     <audio id="snd-tick" src="https://assets.mixkit.co/active_storage/sfx/2571/2571-preview.mp3"></audio>
-    <audio id="snd-alarm" src="https://assets.mixkit.co/active_storage/sfx/1003/1003-preview.mp3"></audio>
     <audio id="snd-win" src="https://assets.mixkit.co/active_storage/sfx/1498/1498-preview.mp3"></audio>
 
     <div id="timer-display">60s</div>
@@ -36,10 +34,8 @@
             <div></div><div id="lx" class="coords-x"></div><div id="ly" class="coords-y"></div>
             <div id="board"></div>
         </div>
-        <div style="width: 250px;">
-            <div style="background:#1e272e; padding:15px; border-radius:8px">
-                <h3>JUGADORES</h3><div id="players"></div>
-            </div>
+        <div style="width: 200px; background:#1e272e; padding:15px; border-radius:8px">
+            <h3>PUNTOS</h3><div id="players"></div>
         </div>
     </div>
     <div id="winner-screen"><h2>¡VICTORIA!</h2><p id="winner-text" style="font-size:2em"></p></div>
@@ -52,36 +48,37 @@
             document.getElementById('ly').innerHTML += `<div class="label">${i}</div>`;
             for(let j=0; j<15; j++) {
                 const c = document.createElement('div');
-                c.className = 'cell'; c.id = `cell-${j}-${i}`;
-                if((j==0||j==7||j==14)&&(i==0||i==7||i==14)&&!(j==7&&i==7)) c.classList.add('tp');
+                c.className = 'cell'; c.id = `cell-${i}-${j}`;
                 b.appendChild(c);
             }
         }
-        document.body.onclick = () => { console.log("Sonido listo"); };
         socket.emit('create-game');
         socket.on('game-created', code => document.getElementById('room-id').innerText = code);
         socket.on('timer-update', s => {
             const t = document.getElementById('timer-display');
             t.innerText = s + "s";
-            if(s <= 10 && s > 0) { t.classList.add('timer-warn'); document.getElementById('snd-tick').play().catch(()=>{}); }
-            else t.classList.remove('timer-warn');
+            if(s <= 10) { 
+                t.classList.add('timer-low');
+                document.getElementById('snd-tick').play().catch(()=>{}); 
+            } else {
+                t.classList.remove('timer-low');
+            }
         });
-        socket.on('time-up', () => document.getElementById('snd-alarm').play().catch(()=>{}));
         socket.on('update-game-state', s => {
-            document.getElementById('players').innerHTML = s.players.map(p => `<div style="padding:5px; border-bottom:1px solid #333; color:${p.id==s.turnOwner?'#f1c40f':'white'}">${p.name}: ${p.score}</div>`).join('');
+            document.getElementById('players').innerHTML = s.players.map(p => `<div style="color:${p.id==s.turnOwner?'#f1c40f':'white'}">${p.name}: ${p.score}</div>`).join('');
         });
         socket.on('new-word-on-board', d => {
             d.word.split('').forEach((l, i) => {
                 const x = d.vertical ? d.x : d.x+i, y = d.vertical ? d.y+i : d.y;
-                const cell = document.getElementById(`cell-${x}-${y}`);
-                cell.innerText = l.toUpperCase(); cell.classList.add('ficha');
+                const cell = document.getElementById(`cell-${y}-${x}`);
+                if(cell) { cell.innerText = l; cell.classList.add('ficha'); }
             });
         });
         socket.on('game-over', d => {
-            document.getElementById('winner-text').innerText = d.winner + " con " + d.finalScore + " pts";
+            document.getElementById('winner-text').innerText = d.winner;
             document.getElementById('winner-screen').classList.add('active');
             document.getElementById('snd-win').play().catch(()=>{});
-            confetti({ particleCount: 150, spread: 70, origin: { y: 0.6 } });
+            confetti();
         });
     </script>
 </body>
