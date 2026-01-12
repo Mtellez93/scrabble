@@ -2,28 +2,30 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Scrabble TV Pro - Game Board</title>
+    <title>Scrabble TV Pro</title>
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.5.1/dist/confetti.browser.min.js"></script>
     <style>
         body { 
-            background: #121212; color: white; font-family: 'Segoe UI', sans-serif; 
-            display: flex; flex-direction: column; align-items: center; margin: 0; padding: 10px;
+            background: #121212; color: white; font-family: 'Segoe UI', Roboto, sans-serif; 
+            display: flex; flex-direction: column; align-items: center; margin: 0; padding: 20px;
         }
 
-        .layout { display: flex; gap: 40px; align-items: flex-start; margin-top: 10px; }
+        h1 { margin: 0 0 20px 0; color: #f1c40f; text-transform: uppercase; letter-spacing: 2px; }
+
+        .layout { display: flex; gap: 40px; align-items: flex-start; }
 
         /* TABLERO Y COORDENADAS */
         .board-container {
             display: grid;
-            grid-template-columns: 40px 1fr;
-            grid-template-rows: 40px 1fr;
+            grid-template-columns: 45px 1fr;
+            grid-template-rows: 45px 1fr;
             background: #2d3436; padding: 15px; border-radius: 12px;
-            box-shadow: 0 15px 35px rgba(0,0,0,0.7);
+            box-shadow: 0 20px 50px rgba(0,0,0,0.8);
         }
         .coords-x { grid-column: 2; display: grid; grid-template-columns: repeat(15, 45px); gap: 2px; }
         .coords-y { grid-row: 2; display: grid; grid-template-rows: repeat(15, 45px); gap: 2px; }
-        .label { display: flex; align-items: center; justify-content: center; font-weight: bold; color: #f1c40f; font-size: 1.1em; }
+        .label { display: flex; align-items: center; justify-content: center; font-weight: bold; color: #f1c40f; font-size: 1.2em; }
         
         #board { 
             grid-row: 2; grid-column: 2; display: grid; 
@@ -34,42 +36,59 @@
         .cell { 
             width: 45px; height: 45px; background: #ecf0f1; color: #2c3e50; 
             display: flex; align-items: center; justify-content: center; 
-            font-weight: bold; font-size: 1.3em; border-radius: 4px;
+            font-weight: bold; font-size: 1.4em; border-radius: 4px; transition: 0.3s;
         }
-        .tp { background: #e74c3c !important; color: white; }
-        .dp { background: #ff7675 !important; }
-        .ficha { background: #f1c40f !important; animation: pop 0.4s ease-out; }
-        @keyframes pop { 0% { transform: scale(0.5); } 100% { transform: scale(1); } }
+
+        /* Colores de Multiplicadores */
+        .tp { background: #e74c3c !important; color: white; } /* Triple Palabra */
+        .dp { background: #ff7675 !important; }              /* Doble Palabra */
+        
+        .ficha { 
+            background: #f1c40f !important; 
+            color: #2c3e50 !important; 
+            animation: bounceIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+            box-shadow: inset 0 -3px rgba(0,0,0,0.2);
+        }
+
+        @keyframes bounceIn {
+            0% { transform: scale(0); }
+            100% { transform: scale(1); }
+        }
 
         /* PANEL LATERAL */
-        .side-panel { width: 300px; display: flex; flex-direction: column; gap: 20px; }
-        
-        .panel-box { background: #1e272e; padding: 15px; border-radius: 10px; border-left: 5px solid #f1c40f; }
-        .panel-box h3 { margin: 0 0 10px 0; font-size: 0.9em; text-transform: uppercase; color: #f1c40f; letter-spacing: 1px; }
+        .side-panel { width: 320px; display: flex; flex-direction: column; gap: 20px; }
+        .panel-box { background: #1e272e; padding: 20px; border-radius: 12px; border-top: 4px solid #f1c40f; }
+        .panel-box h3 { margin: 0 0 15px 0; font-size: 1em; color: #f1c40f; text-transform: uppercase; }
 
-        /* ESTILOS DEL HISTORIAL */
-        #history-list { height: 300px; overflow-y: auto; font-size: 1.1em; }
+        /* HISTORIAL */
+        #history-list { height: 350px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
         .history-item { 
-            padding: 5px 0; border-bottom: 1px solid #333; 
-            display: flex; justify-content: space-between; animation: slideIn 0.3s ease;
+            background: #2d3436; padding: 10px; border-radius: 6px;
+            display: flex; justify-content: space-between; align-items: center;
+            animation: slideIn 0.4s ease-out;
         }
-        @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
-        .word-val { color: #27ae60; font-weight: bold; }
+        @keyframes slideIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
+        .h-word { font-weight: bold; font-size: 1.1em; color: #fff; }
+        .h-pts { color: #27ae60; font-weight: 900; }
 
-        /* PUNTUACIONES */
-        .player-card { padding: 10px; margin-bottom: 10px; background: #2d3436; border-radius: 5px; }
-        .active-turn { border: 2px solid #f1c40f; box-shadow: 0 0 10px #f1c40f; }
+        /* JUGADORES */
+        .player-card { 
+            padding: 12px; margin-bottom: 10px; background: #2d3436; 
+            border-radius: 8px; display: flex; justify-content: space-between;
+            border: 2px solid transparent; transition: 0.3s;
+        }
+        .active-turn { border-color: #f1c40f; background: #34495e; transform: scale(1.05); }
 
         #bingo-msg {
-            position: fixed; top: 10%; background: #f1c40f; color: black;
-            padding: 15px 40px; font-size: 3em; font-weight: 900; border-radius: 50px;
-            display: none; z-index: 100; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            position: fixed; top: 15%; background: #f1c40f; color: black;
+            padding: 20px 60px; font-size: 4em; font-weight: 900; border-radius: 50px;
+            display: none; z-index: 1000; box-shadow: 0 0 50px rgba(241,196,15,0.4);
         }
     </style>
 </head>
 <body>
     <div id="bingo-msg">¡BINGO! +50</div>
-    <h1 style="margin: 5px;">SALA: <span id="room-id" style="color:#f1c40f">--</span></h1>
+    <h1>SALA: <span id="room-id" style="color:#f1c40f">--</span></h1>
 
     <div class="layout">
         <div class="board-container">
@@ -81,12 +100,12 @@
 
         <div class="side-panel">
             <div class="panel-box">
-                <h3>Jugadores</h3>
+                <h3>Puntuaciones</h3>
                 <div id="players"></div>
             </div>
 
             <div class="panel-box">
-                <h3>Historial de Palabras</h3>
+                <h3>Últimas Palabras</h3>
                 <div id="history-list"></div>
             </div>
         </div>
@@ -95,16 +114,25 @@
     <script>
         const socket = io();
         const board = document.getElementById('board');
-        
-        // Generar coordenadas y celdas
+        const labelsX = document.getElementById('labels-x');
+        const labelsY = document.getElementById('labels-y');
+
+        const multipliers = {
+            tp: ["0,0", "0,7", "0,14", "7,0", "7,14", "14,0", "14,7", "14,14"],
+            dp: ["1,1", "2,2", "3,3", "4,4", "10,10", "11,11", "12,12", "13,13"]
+        };
+
+        // Construir Tablero
         for (let i = 0; i < 15; i++) {
-            document.getElementById('labels-x').innerHTML += `<div class="label">${i}</div>`;
-            document.getElementById('labels-y').innerHTML += `<div class="label">${i}</div>`;
+            labelsX.innerHTML += `<div class="label">${i}</div>`;
+            labelsY.innerHTML += `<div class="label">${i}</div>`;
             for (let j = 0; j < 15; j++) {
                 const cell = document.createElement('div');
                 cell.className = 'cell';
                 cell.id = `cell-${j}-${i}`;
-                if((j==0||j==7||j==14) && (i==0||i==7||i==14) && !(j==7&&i==7)) cell.classList.add('tp');
+                const coord = `${j},${i}`;
+                if(multipliers.tp.includes(coord)) cell.classList.add('tp');
+                if(multipliers.dp.includes(coord)) cell.classList.add('dp');
                 board.appendChild(cell);
             }
         }
@@ -115,25 +143,28 @@
         socket.on('update-game-state', state => {
             document.getElementById('players').innerHTML = state.players.map(p => `
                 <div class="player-card ${p.id === state.turnOwner ? 'active-turn' : ''}">
-                    <b>${p.name}</b>: ${p.score} pts
+                    <span>${p.name} ${p.id === state.turnOwner ? '⚡' : ''}</span>
+                    <span style="color:#f1c40f; font-weight:bold">${p.score}</span>
                 </div>
             `).join('');
         });
 
         socket.on('new-word-on-board', data => {
             if (data.bingo) {
-                document.getElementById('bingo-msg').style.display = 'block';
-                setTimeout(() => document.getElementById('bingo-msg').style.display = 'none', 2000);
+                const b = document.getElementById('bingo-msg');
+                b.style.display = 'block';
+                setTimeout(() => b.style.display = 'none', 2500);
+                confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
             }
 
-            // Agregar al historial visual
+            // Historial
             const history = document.getElementById('history-list');
-            const item = document.createElement('div');
-            item.className = 'history-item';
-            item.innerHTML = `<span>${data.word.toUpperCase()}</span> <span class="word-val">+${data.puntosTurno}</span>`;
-            history.prepend(item); // La más nueva arriba
+            history.innerHTML = `<div class="history-item">
+                <span class="h-word">${data.word.toUpperCase()}</span>
+                <span class="h-pts">+${data.puntosTurno}</span>
+            </div>` + history.innerHTML;
 
-            // Dibujar en tablero
+            // Dibujar letras
             data.word.split('').forEach((letra, i) => {
                 const x = data.vertical ? parseInt(data.x) : parseInt(data.x) + i;
                 const y = data.vertical ? parseInt(data.y) + i : parseInt(data.y);
@@ -148,8 +179,8 @@
         });
 
         socket.on('game-over', podio => {
-            confetti({ particleCount: 200, spread: 70, origin: { y: 0.6 } });
-            alert("¡JUEGO TERMINADO! Ganador: " + podio[0].name);
+            confetti({ particleCount: 300, spread: 100, origin: { y: 0.5 } });
+            alert("¡FIN DE LA PARTIDA! Ganador: " + podio[0].name);
         });
     </script>
 </body>
