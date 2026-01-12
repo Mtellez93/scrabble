@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="es">
+<html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -7,112 +7,64 @@
     <script src="/socket.io/socket.io.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
     <style>
-        body { font-family: sans-serif; background: #1e272e; color: white; text-align: center; padding: 15px; margin: 0; user-select: none; }
-        input, button, select { width: 100%; padding: 15px; margin: 8px 0; border-radius: 12px; border: none; box-sizing: border-box; font-size: 1.1em; }
-        
-        .atril { 
-            display: flex; justify-content: center; gap: 8px; margin: 20px 0; padding: 20px; 
-            background: #2d3436; border-radius: 15px; min-height: 70px;
-            border: 2px dashed #34495e;
-        }
-        .ficha { 
-            background: #f1c40f; color: #2c3e50; padding: 14px; font-weight: bold; 
-            border-radius: 8px; min-width: 25px; cursor: grab;
-            box-shadow: 0 4px #d4ac0d; font-size: 1.2em;
-        }
-        .ficha:active { cursor: grabbing; transform: scale(1.1); }
-        .sortable-ghost { opacity: 0.4; background: #3498db; }
-
-        .btn-play { background: #27ae60; color: white; font-weight: bold; height: 65px; margin-top: 20px; }
-        button:disabled { background: #7f8c8d !important; opacity: 0.5; }
-        #msg { padding: 15px; margin-bottom: 10px; border-radius: 10px; font-weight: bold; font-size: 1.2em; }
+        body { font-family: sans-serif; background: #1e272e; color: white; text-align: center; padding: 15px; margin: 0; }
+        input, button, select { width: 100%; padding: 15px; margin: 8px 0; border-radius: 10px; border: none; font-size: 1.1em; }
+        .atril { display: flex; justify-content: center; gap: 8px; margin: 15px 0; min-height: 60px; background: #2d3436; padding: 15px; border-radius: 12px; }
+        .ficha { background: #f1c40f; color: #2c3e50; padding: 12px; font-weight: bold; border-radius: 6px; min-width: 20px; box-shadow: 0 4px #d4ac0d; cursor: grab; }
+        .btn-play { background: #27ae60; color: white; font-weight: bold; }
+        #msg { padding: 15px; border-radius: 10px; font-weight: bold; }
         .mi-turno { background: #27ae60; } .otro-turno { background: #c0392b; }
-        .hint { font-size: 0.8em; color: #7f8c8d; margin-top: -10px; margin-bottom: 10px; }
     </style>
 </head>
 <body>
     <div id="setup">
-        <h2 style="color:#f1c40f">SCRABBLE PARTY</h2>
+        <h2>SCRABBLE</h2>
         <input id="room" placeholder="CÓDIGO SALA" style="text-transform: uppercase;">
-        <input id="name" placeholder="TU NOMBRE">
+        <input id="name" placeholder="NOMBRE">
         <button onclick="join()" style="background:#3498db; color:white">ENTRAR</button>
     </div>
-
     <div id="game" style="display:none">
-        <div id="msg">Cargando...</div>
-        
-        <div class="atril" id="atril"></div>
-        <p class="hint">Mantén presionado para arrastrar y ordenar</p>
-
+        <div id="msg">...</div>
+        <div id="m-timer" style="font-size:1.5em; color:#f1c40f">60s</div>
+        <div id="atril" class="atril"></div>
+        <button onclick="shuffle()" style="background:#34495e; color:white">MEZCLAR</button>
+        <input id="word" placeholder="PALABRA" style="text-transform: uppercase;">
         <div style="display:flex; gap:10px">
-            <button onclick="shuffle()" style="background:#34495e; color:white; font-size: 0.9em;">MEZCLAR</button>
-            <button id="passBtn" style="background:#e67e22; color:white; font-size: 0.9em;" onclick="pass()">PASAR TURNO</button>
-        </div>
-
-        <hr style="border:0; border-top:1px solid #34495e; margin: 20px 0;">
-        
-        <input id="word" placeholder="TU PALABRA" style="text-transform: uppercase;">
-        <div style="display:flex; gap:10px">
-            <select id="colSel"></select>
-            <select id="rowSel"></select>
+            <select id="colSel"></select><select id="rowSel"></select>
         </div>
         <select id="v"><option value="false">HORIZONTAL</option><option value="true">VERTICAL</option></select>
         <button id="pBtn" class="btn-play" onclick="send()">ENVIAR JUGADA</button>
+        <button id="passBtn" style="background:#e67e22; color:white" onclick="pass()">PASAR</button>
     </div>
 
     <script>
         const socket = io(); let myL = [], myR = "";
         const colS = document.getElementById('colSel');
         const rowS = document.getElementById('rowSel');
-        const atrilEl = document.getElementById('atril');
-
-        // Inicializar Drag and Drop
-        new Sortable(atrilEl, {
-            animation: 150,
-            ghostClass: 'sortable-ghost'
-        });
+        new Sortable(document.getElementById('atril'), { animation: 150 });
 
         colS.innerHTML = '<option value="">COLUMNA</option>' + Array.from({length:15}, (_,i) => `<option value="${String.fromCharCode(65+i)}">${String.fromCharCode(65+i)}</option>`).join('');
-        rowS.innerHTML = '<option value="">RENGÓN</option>' + Array.from({length:15}, (_,i) => `<option value="${i}">${i}</option>`).join('');
+        rowS.innerHTML = '<option value="">RENGLÓN</option>' + Array.from({length:15}, (_,i) => `<option value="${i}">${i}</option>`).join('');
 
         function join() { myR = document.getElementById('room').value.toUpperCase(); socket.emit('join-game', { roomCode: myR, playerName: document.getElementById('name').value }); }
-        
-        socket.on('joined-success', d => { 
-            document.getElementById('setup').style.display='none'; 
-            document.getElementById('game').style.display='block'; 
-            myL = d.letras; 
-            render(); 
-        });
-
+        socket.on('joined-success', d => { document.getElementById('setup').style.display='none'; document.getElementById('game').style.display='block'; myL = d.letras; render(); });
+        socket.on('timer-update', s => { document.getElementById('m-timer').innerText = s + "s"; });
         socket.on('update-game-state', s => {
             const isT = socket.id === s.turnOwner;
             document.getElementById('pBtn').disabled = !isT;
-            document.getElementById('passBtn').disabled = !isT;
-            const m = document.getElementById('msg');
-            m.innerText = isT ? "¡ES TU TURNO!" : "ESPERANDO TURNO...";
-            m.className = isT ? "mi-turno" : "otro-turno";
+            document.getElementById('msg').innerText = isT ? "¡TU TURNO!" : "ESPERA...";
+            document.getElementById('msg').className = isT ? "mi-turno" : "otro-turno";
             if(!isT) { document.getElementById('word').value = ""; colS.value = ""; rowS.value = ""; }
         });
-
         socket.on('nuevas-letras', l => { myL = l; render(); });
         socket.on('error-juego', m => alert(m));
-
-        function render() { 
-            atrilEl.innerHTML = myL.map(l => `<div class="ficha">${l}</div>`).join(''); 
-        }
-
-        function shuffle() { 
-            myL.sort(() => Math.random() - 0.5); 
-            render(); 
-        }
-
-        function pass() { if(confirm("¿Pasar turno? Recibirás una ficha extra.")) socket.emit('pass-turn', myR); }
-
+        function render() { document.getElementById('atril').innerHTML = myL.map(l => `<div class="ficha">${l}</div>`).join(''); }
+        function shuffle() { myL.sort(() => Math.random() - 0.5); render(); }
+        function pass() { if(confirm("¿Pasar?")) socket.emit('pass-turn', myR); }
         function send() {
-            const w = document.getElementById('word').value.toUpperCase().trim();
-            const c = colS.value; const r = rowS.value;
-            if(!w || !c || r==="") return alert("Faltan datos");
-            socket.emit('play-word', { roomCode: myR, word: w, col: c, row: r, vertical: document.getElementById('v').value === "true" });
+            const w = document.getElementById('word').value.toUpperCase();
+            if(!w || !colS.value || rowS.value === "") return alert("Faltan datos");
+            socket.emit('play-word', { roomCode: myR, word: w, col: colS.value, row: rowS.value, vertical: document.getElementById('v').value === "true" });
         }
     </script>
 </body>
