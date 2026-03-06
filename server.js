@@ -101,4 +101,4 @@ io.on('connection', (socket) => {
         forcePass(roomCode);
     });
 });
-server.listen(3000, () => console.log('Servidor Scrabble Listo'));
+server.listen(3006, () => console.log('Servidor Scrabble Listo'));
