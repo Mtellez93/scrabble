@@ -101,4 +101,8 @@ io.on('connection', (socket) => {
         forcePass(roomCode);
     });
 });
-server.listen(3006, () => console.log('Servidor Scrabble Listo'));
+const PORT = process.env.PORT || 3000;
+
+server.listen(PORT, () => {
+  console.log(`Servidor Scrabble listo en puerto ${PORT}`);
+});
